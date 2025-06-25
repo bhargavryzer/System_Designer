@@ -140,4 +140,83 @@ The AI-driven steps (3-6) are placeholders for what would be complex interaction
 -   **Testing:** Comprehensive unit and integration tests for all agents, including mocking strategies for AI calls.
 -   **Packaging:** Package the application for easier distribution (e.g., PyPI, Docker).
 -   **Security:** If deployed as a service, implement proper authentication/authorization. For CLI, continue secure API key handling.
+
+## Running the Backend API Server
+
+The Python application can be run as an API server using Flask. This is necessary if you intend to use a separate frontend (like the conceptual React UI described below).
+
+1.  **Ensure Prerequisites and Setup are complete** (Python, dependencies, `GEMINI_API_KEY` environment variable).
+
+2.  **Navigate to the project root directory** (the one containing the `app_designer` package).
+
+3.  **Run the API server:**
+    You have a few options:
+    *   **Using Flask CLI (Recommended for development):**
+        ```bash
+        export FLASK_APP=app_designer.api:app
+        # Optional: export FLASK_ENV=development (for debug mode)
+        # Optional: export FLASK_RUN_PORT=5001
+        # Optional: export FLASK_RUN_HOST=0.0.0.0 (to make it accessible on your network)
+        flask run
+        ```
+    *   **Directly running `api.py` (for simple development):**
+        ```bash
+        python -m app_designer.api
+        ```
+        This will typically start the server on `http://127.0.0.1:5001`. You can set `FLASK_DEBUG=true`, `FLASK_RUN_HOST`, and `FLASK_RUN_PORT` environment variables to configure it.
+
+4.  The API server will start, and the `POST /api/v1/generate-design` endpoint will be available.
+
+**For Production Deployment:** Use a proper WSGI server like Gunicorn or uWSGI:
+```bash
+# Example with Gunicorn (install gunicorn first: pip install gunicorn)
+gunicorn -w 4 -b 0.0.0.0:5001 app_designer.api:app
+```
+
+## Conceptual React UI Frontend
+
+A React-based user interface can be developed to interact with the backend API. This section outlines the conceptual structure and setup for such a frontend. **Note:** The React frontend code is not part of this backend project directly but would be a separate project.
+
+**Purpose:**
+To provide a user-friendly web interface for:
+-   Inputting user flow text.
+-   Submitting the flow to the backend API.
+-   Displaying the generated system design report (Markdown).
+-   Showing loading states and error messages.
+
+**Setup (Conceptual - for a new React project named `frontend`):**
+
+1.  **Install Node.js and npm/yarn.**
+2.  **Create a new React application (e.g., using Vite):**
+    ```bash
+    npm create vite@latest frontend -- --template react
+    cd frontend
+    npm install
+    ```
+3.  **Install necessary libraries:**
+    ```bash
+    npm install axios react-router-dom react-markdown remark-gfm
+    # Optionally, a UI component library like Material-UI:
+    # npm install @mui/material @emotion/react @emotion/styled
+    # Optionally, a state management library like Zustand:
+    # npm install zustand
+    ```
+4.  **Configure API Base URL:**
+    In your React app (e.g., in a `.env` file like `.env.development.local` or `.env.local`), set the base URL for your Python backend API:
+    ```
+    REACT_APP_API_BASE_URL=http://localhost:5001
+    ```
+    (Adjust if your Flask server runs on a different port/host). Your API service code in React (e.g., `src/services/designApiService.js`) would then use this environment variable.
+
+5.  **Develop Components:**
+    Create components as outlined in the "Conceptual React Application Structure" (e.g., `HomePage.js`, `DesignReportPage.js`). Refer to the conceptual snippets provided earlier in development.
+
+6.  **Run the React Development Server:**
+    ```bash
+    npm run dev
+    ```
+    This will typically start the React app on `http://localhost:5173` (for Vite) or `http://localhost:3000` (for Create React App).
+
+**Interaction:**
+The React frontend will make HTTP POST requests to the `http://localhost:5001/api/v1/generate-design` endpoint (or your configured API URL) on the Python backend. Ensure CORS is enabled on the Flask backend (as done in `api.py`) to allow requests from the React development server's origin.
 ```
