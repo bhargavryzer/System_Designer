@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 class OutputFormattingAgent:
     """
     Agent responsible for formatting the generated system design components
@@ -11,12 +15,21 @@ class OutputFormattingAgent:
         Formats the structured design components into a Markdown string.
         """
         if not design_components:
+            logger.warning("No design components provided to format.")
             return "No design components to format."
 
-        print(f"OutputFormattingAgent: Formatting design components: {str(design_components)[:100]}...")
+        logger.info(f"Formatting design components (keys: {list(design_components.keys())})...")
+        logger.debug(f"Full design components for formatting: {str(design_components)[:200]}...") # Log snippet of input
 
         if "error" in design_components:
-            return f"# System Design Generation Error\n\n```\n{design_components['error']}\n{design_components.get('details', '')}\n```"
+            logger.warning(f"Formatting an error report: {design_components['error']}")
+            # Error report format is already handled by Orchestrator, but if called directly:
+            error_details = design_components.get('details', '')
+            raw_response_snippet = str(design_components.get('raw_response', ''))[:200]
+            return (f"# System Design Generation Error\n\n"
+                    f"**Error:** {design_components['error']}\n"
+                    f"**Details:** {error_details}\n"
+                    f"**Raw AI Response (snippet):**\n```\n{raw_response_snippet}...\n```\n")
 
         md_output = ["# Generated System Design\n"]
 
@@ -65,10 +78,14 @@ class OutputFormattingAgent:
             md_output.append("No specific design components were generated.")
 
         formatted_text = "\n".join(md_output)
-        print("OutputFormattingAgent: Formatting complete.")
+        logger.info("Formatting complete.")
         return formatted_text
 
 if __name__ == '__main__':
+    # Basic logging setup for standalone execution
+    import json # Added import for json.dumps
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     # Example Usage
     formatting_agent = OutputFormattingAgent()
 
@@ -90,16 +107,20 @@ if __name__ == '__main__':
         "security_notes": ["Password hashing (bcrypt)", "Email verification", "Input validation"]
     }
 
+    logger.info("Testing with sample design components...")
     formatted_output = formatting_agent.format_design(sample_design)
-    print("\nFormatted System Design (Markdown):")
-    print(formatted_output)
+    logger.info(f"Formatted System Design (Markdown):\n{formatted_output}")
 
     empty_design = {}
+    logger.info("Testing with empty design components...")
     formatted_empty = formatting_agent.format_design(empty_design)
-    print("\nFormatted Empty Design:")
-    print(formatted_empty)
+    logger.info(f"Formatted Empty Design:\n{formatted_empty}")
 
-    error_design = {"error": "Simulated Gemini API failure.", "details": "The model returned an unexpected status code."}
+    error_design = {
+        "error": "Simulated Gemini API failure.",
+        "details": "The model returned an unexpected status code.",
+        "raw_response": "Some raw error string from AI"
+    }
+    logger.info("Testing with error design components...")
     formatted_error = formatting_agent.format_design(error_design)
-    print("\nFormatted Error Design:")
-    print(formatted_error)
+    logger.info(f"Formatted Error Design:\n{formatted_error}")

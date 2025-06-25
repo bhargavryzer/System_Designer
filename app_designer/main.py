@@ -1,68 +1,185 @@
-from orchestrator import Orchestrator # Assuming orchestrator.py is in the same directory or Python path
+import os
+import argparse
+import logging
+from orchestrator import Orchestrator
+from . import config # Import the config module
+
+# It's good practice to set up logging as early as possible.
+# For a CLI app, basicConfig is often sufficient for initial setup.
+# More complex apps might use a logging config file.
+logging.basicConfig(
+    level=logging.INFO,  # Default level, can be overridden by args
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__) # Get a logger for this module
+
+# --- Best Practices for API Key Management ---
+# 1. Environment Variables (as shown): Good for development and many deployment scenarios.
+#    Set `GEMINI_API_KEY` in your shell or .env file (use python-dotenv to load .env).
+# 2. Secrets Management Services: For production, use services like AWS Secrets Manager,
+#    Google Secret Manager, Azure Key Vault, or HashiCorp Vault.
+#    Your application would then fetch the key from these services at runtime.
+# 3. Configuration Files (with caution): If used, ensure the config file containing the key
+#    is NOT checked into version control (add to .gitignore). Permissions should be restricted.
+#    This is generally less secure than environment variables or dedicated secrets managers.
+#
+# NEVER hardcode API keys directly in your source code in a production application.
 
 def run_design_generation_app():
     """
     Main function to run the application.
-    Defines a sample user flow and uses the Orchestrator to generate a system design.
+    Parses command-line arguments, initializes the Orchestrator,
+    and generates a system design based on user input.
     """
-    print("Application: System Design Generator from User Flow")
-    print("==================================================")
+    parser = argparse.ArgumentParser(
+        description="System Design Generator from User Flow using Gemini AI.",
+        formatter_class=argparse.RawTextHelpFormatter # For better help text formatting
+    )
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "-t", "--text",
+        type=str,
+        help="Direct text string of the user flow."
+    )
+    input_group.add_argument(
+        "-f", "--file",
+        type=argparse.FileType('r', encoding='utf-8'),
+        help="Path to a text file containing the user flow."
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=argparse.FileType('w', encoding='utf-8'),
+        help="Optional: Path to a file where the generated Markdown design will be saved."
+    )
+    parser.add_argument(
+        "--api_key",
+        type=str,
+        default=os.getenv("GEMINI_API_KEY"), # Default to environment variable
+        help="Gemini API Key. If not provided, defaults to GEMINI_API_KEY environment variable. "
+             "If neither is set, runs in simulation mode."
+    )
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default=config.DEFAULT_GEMINI_MODEL, # Default from config.py
+        help=f"The Gemini model name to use (e.g., 'gemini-pro', 'gemini-1.5-pro-latest'). Default: {config.DEFAULT_GEMINI_MODEL}"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_const",
+        dest="loglevel",
+        const=logging.DEBUG,
+        default=logging.INFO,
+        help="Enable verbose (DEBUG level) logging."
+    )
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_const",
+        dest="loglevel",
+        const=logging.WARNING,
+        help="Enable quiet (WARNINGS only) logging."
+    )
 
-    # --- Sample User Flow ---
-    # You can replace this with any user flow text.
-    sample_user_flow = """
-    User Authentication and Profile Management Flow:
+    args = parser.parse_args()
 
-    Part 1: User Registration
-    1. New user navigates to the 'Sign Up' page.
-    2. User provides their email address, a chosen password (with confirmation), and a username.
-    3. User clicks the 'Register' button.
-    4. The System attempts to validate the provided data (e.g., email format, password strength, username availability).
-    5. If validation fails, the System displays specific error messages next to the relevant fields on the signup page.
-    6. If validation succeeds, the System creates a new user record in the database with a 'pending confirmation' status.
-    7. The System generates a unique email confirmation token and sends an email with a confirmation link to the user's provided email address.
-    8. The user is shown a message on screen: "Registration successful. Please check your email to confirm your account."
+    # Update logging level based on arguments
+    logging.getLogger().setLevel(args.loglevel) # Set root logger level
+    # You might want to set levels for specific loggers if you have more complex needs
+    # For example: logging.getLogger('app_designer.agents.generation_agent').setLevel(logging.DEBUG)
 
-    Part 2: Email Confirmation
-    1. User receives the confirmation email and clicks the confirmation link.
-    2. The System validates the confirmation token (e.g., checks if it exists, hasn't expired).
-    3. If the token is valid, the System updates the user's account status to 'active'.
-    4. The System redirects the user to a 'Login' page with a message: "Email confirmed. You can now log in."
-    5. If the token is invalid or expired, the System shows an error page with an option to resend the confirmation email.
+    logger.info("Application: System Design Generator - Starting")
+    logger.debug(f"Arguments received: {args}")
 
-    Part 3: User Login
-    1. Returning user navigates to the 'Login' page.
-    2. User enters their registered email and password.
-    3. User clicks the 'Login' button.
-    4. The System verifies the credentials against the database.
-    5. If credentials are valid and the account is active, the System creates a session for the user and redirects them to their personalized 'Dashboard' page.
-    6. If credentials are invalid or the account is not active, the System displays an error message on the login page.
 
-    Part 4: Basic Profile Viewing (Post-Login)
-    1. Logged-in user navigates to their 'Profile' page from the dashboard.
-    2. The System retrieves and displays the user's current username and email address.
-    """
+    user_flow_text = ""
+    if args.text:
+        user_flow_text = args.text
+        logger.info("User flow provided via direct text input.")
+    elif args.file:
+        try:
+            user_flow_text = args.file.read()
+            logger.info(f"User flow read successfully from file: {args.file.name}")
+        except Exception as e:
+            logger.error(f"Error reading from file {args.file.name}: {e}", exc_info=True)
+            print(f"Error: Could not read from file {args.file.name}. See logs for details.")
+            return 1 # Exit with error code
+        finally:
+            args.file.close()
 
-    print("\n--- Input User Flow ---")
-    print(sample_user_flow)
-    print("-----------------------\n")
+    if not user_flow_text.strip():
+        logger.error("User flow text is empty. Cannot proceed.")
+        print("Error: User flow input is empty.")
+        return 1
 
-    # Initialize the orchestrator
-    # In a real application, you might get the GEMINI_API_KEY from environment variables or a config file
-    orchestrator = Orchestrator(gemini_api_key="DUMMY_API_KEY_FROM_MAIN_APP")
-                                                        # Still using dummy for this example
 
-    # Generate the system design
-    print("Application: Requesting system design generation...\n")
-    formatted_system_design = orchestrator.generate_system_design(sample_user_flow)
+    # Initialize the orchestrator with the API key and model name from args or environment
+    # The Orchestrator itself will handle the case where api_key is None or a dummy value.
+    orchestrator = Orchestrator(
+        gemini_api_key=args.api_key,
+        gemini_model_name=args.model_name
+    )
 
-    # Print the final output
-    print("\n\n==============================================")
-    print("    최종 생성된 시스템 설계 (Final Generated System Design)   ")
-    print("==============================================")
-    print(formatted_system_design)
-    print("==============================================")
-    print("Application: Process finished.")
+    logger.info("Requesting system design generation from Orchestrator...")
+    formatted_system_design = orchestrator.generate_system_design(user_flow_text)
+
+    if args.output:
+        try:
+            args.output.write(formatted_system_design)
+            logger.info(f"Generated system design saved to: {args.output.name}")
+            print(f"\nGenerated system design saved to: {args.output.name}")
+        except Exception as e:
+            logger.error(f"Error writing to output file {args.output.name}: {e}", exc_info=True)
+            print(f"Error: Could not write to output file {args.output.name}. Displaying to console instead:")
+            print("\n" + "="*50)
+            print("Final Generated System Design:")
+            print("="*50)
+            print(formatted_system_design)
+            print("="*50)
+        finally:
+            args.output.close()
+    else:
+        # Print to console if no output file specified
+        print("\n" + "="*50)
+        print("Final Generated System Design:")
+        print("="*50)
+        print(formatted_system_design)
+        print("="*50)
+
+    logger.info("Application: System Design Generator - Finished")
+    return 0 # Exit with success code
 
 if __name__ == "__main__":
-    run_design_generation_app()
+    # Example of how to run from command line (these would be actual CLI commands):
+    # python app_designer/main.py --file path/to/your/user_flow.txt
+    # python app_designer/main.py --text "User logs in. System verifies. User sees dashboard." -o output.md
+    # GEMINI_API_KEY="your_real_api_key" python app_designer/main.py --file flow.txt
+
+    # To make this script executable and callable directly, you would typically
+    # use a setup.py with entry_points, or just run `python -m app_designer.main ...`
+    # For now, it's designed to be run as `python app_designer/main.py ...`
+
+    # If running this file directly for testing (e.g. in an IDE without args):
+    # import sys
+    # if len(sys.argv) == 1: # No CLI args provided
+    #     print("Running with default test flow (no CLI args detected)...")
+    #     # This is a simple way to test; ideally, use pytest or similar for formal tests.
+    #     # For direct execution in IDE without args, you might hardcode a test flow:
+    #     test_flow = """
+    #     Test Flow for direct execution:
+    #     1. User visits the homepage.
+    #     2. User clicks the 'About Us' link.
+    #     3. System displays the About Us page.
+    #     """
+    #     # To simulate command line args for testing:
+    #     # sys.argv.extend(['--text', test_flow, '--verbose'])
+    #     # Or, to ensure it runs if this is the entry point without external args:
+    #     # This part is tricky because argparse expects CLI args.
+    #     # Better to run with actual args or use a dedicated test suite.
+    #     # For now, we'll just let it run with `run_design_generation_app()`
+    #     # which will show help if no args are given.
+    #     pass
+
+    exit_code = run_design_generation_app()
+    sys.exit(exit_code) # Ensure the application exits with the correct code
+import sys # Ensure sys is imported if used in __main__ guard. It's good practice to have it at the top.

@@ -1,4 +1,8 @@
 import re
+import logging
+import json # For logging dicts if needed
+
+logger = logging.getLogger(__name__)
 
 class UserFlowAnalysisAgent:
     """
@@ -10,15 +14,27 @@ class UserFlowAnalysisAgent:
     def analyze_flow(self, cleaned_flow_text: str) -> dict:
         """
         Analyzes the cleaned user flow text to extract structured information.
-        For this version, it will use simple regex and keyword spotting.
+
+        PRODUCTION ENHANCEMENT:
+        For a production-ready system, this agent would ideally use a powerful NLP model
+        (like Gemini itself) for more accurate and nuanced understanding of the user flow.
+        This would involve:
+        1. Initializing this agent with Gemini API access.
+        2. Crafting a detailed prompt instructing Gemini to parse the `cleaned_flow_text`
+           and extract actors, actions, features, screens, data entities, and flow sequences.
+        3. Requesting Gemini to output this information in a structured JSON format.
+        4. Calling the Gemini API and parsing its JSON response.
+
+        The current implementation uses simple regex and keyword spotting as a placeholder.
 
         Returns:
             A dictionary containing extracted elements like 'actors', 'screens', 'actions'.
         """
         if not cleaned_flow_text:
+            logger.error("Cleaned flow text cannot be empty for analysis.")
             raise ValueError("Cleaned flow text cannot be empty for analysis.")
 
-        print(f"UserFlowAnalysisAgent: Analyzing text: '{cleaned_flow_text[:100]}...'")
+        logger.info(f"Analyzing text (first 100 chars): '{cleaned_flow_text[:100]}...'")
 
         actors = set()
         actions = set()
@@ -72,20 +88,23 @@ class UserFlowAnalysisAgent:
             "original_flow": cleaned_flow_text
         }
 
-        print(f"UserFlowAnalysisAgent: Analysis complete. Found {len(actors)} actors, {len(actions)} actions, {len(screens)} screens.")
+        logger.info(f"Analysis complete. Found {len(actors)} actors, {len(actions)} actions, {len(screens)} screens.")
+        logger.debug(f"Detailed analysis result: {json.dumps(analysis_result, indent=2)}") # Log full result at DEBUG
         return analysis_result
 
 if __name__ == '__main__':
+    # Basic logging setup for standalone execution
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
     # Example Usage
     analysis_agent = UserFlowAnalysisAgent()
     sample_cleaned_flow = "User Registration Flow: 1. User navigates to the signup page. 2. User enters email, password, and username. 3. System validates the input. If valid, System creates a new user account. 4. System sends a confirmation email. 5. User is redirected to the login page or dashboard."
 
+    logger.info("Testing analysis with sample registration flow...")
     analysis_output = analysis_agent.analyze_flow(sample_cleaned_flow)
-    print("\nAnalysis Output:")
-    import json
-    print(json.dumps(analysis_output, indent=2))
+    logger.info(f"Analysis Output (Registration Flow):\n{json.dumps(analysis_output, indent=2)}")
 
     another_flow = "Customer logs in with username and password. System verifies credentials. Customer views the order history page. Customer clicks on an order to see details."
+    logger.info("Testing analysis with sample customer login flow...")
     analysis_output_2 = analysis_agent.analyze_flow(another_flow)
-    print("\nAnalysis Output 2:")
-    print(json.dumps(analysis_output_2, indent=2))
+    logger.info(f"Analysis Output (Customer Login Flow):\n{json.dumps(analysis_output_2, indent=2)}")
