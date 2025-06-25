@@ -11,10 +11,11 @@ class OutputFormattingAgent:
     def __init__(self):
         pass
 
-    def _format_individual_design(self, design_data: dict, title: str) -> list[str]:
+    def _format_individual_design(self, design_data: dict, title: str, is_final_design: bool = False) -> list[str]:
         """Helper to format a single system design structure."""
         md_section = [f"## {title}\n"]
-        if not design_data or "error" in design_data:
+        if not design_data or ("error" in design_data and not is_final_design) : # If it's final design error, it's handled differently by main formatter
+             # For initial design errors, or if called directly with an error dict
             error_info = design_data.get('error', 'Unknown error')
             details = design_data.get('details', 'No details provided.')
             raw_response = design_data.get('raw_response', '')
@@ -72,6 +73,17 @@ class OutputFormattingAgent:
             for change_note in design_data["design_rationale_changes"]:
                 md_section.append(f"- {change_note}")
             md_section.append("\n")
+
+        # Conceptual: Add hints for diagrams if present
+        if "diagram_hints" in design_data and design_data["diagram_hints"]:
+            md_section.append("### Diagram Hints (Conceptual Data)\n")
+            md_section.append("_(This section shows conceptual data that a diagramming agent could use.)_\n")
+            for hint in design_data["diagram_hints"][:3]: # Show a few examples
+                md_section.append(f"- **Type:** {hint.get('type', 'N/A')}, **Details:** {json.dumps({k:v for k,v in hint.items() if k != 'type'}, ensure_ascii=False)}")
+            if len(design_data["diagram_hints"]) > 3:
+                md_section.append("- ... and more.")
+            md_section.append("\n")
+
 
         if len(md_section) == 1: # Only title was added
              md_section.append("_No specific components detailed for this design stage._\n")
@@ -170,12 +182,32 @@ class OutputFormattingAgent:
         # 6. Final Redesigned System
         # Check for an error specifically at the redesign stage
         if "final_system_design_error" in full_report_data:
-             md_output.extend(self._format_individual_design(full_report_data["final_system_design_error"], "6. Final Redesigned System (Error during Redesign)"))
+             md_output.extend(self._format_individual_design(full_report_data["final_system_design_error"], "6. Final Redesigned System (Error during Redesign)", is_final_design=True))
         elif "final_system_design" in full_report_data:
-            md_output.extend(self._format_individual_design(full_report_data["final_system_design"], "6. Final Redesigned System (AI Generated)"))
+            md_output.extend(self._format_individual_design(full_report_data["final_system_design"], "6. Final Redesigned System (AI Generated)", is_final_design=True))
         else:
             md_output.append("## 6. Final Redesigned System\n_Redesign step was not completed or data is missing._\n")
 
+        # 7. Conceptual: System Architecture Diagrams
+        md_output.append("## 7. System Architecture Diagrams (Conceptual)\n")
+        if full_report_data.get("final_system_design", {}).get("diagram_hints") and not full_report_data.get("final_system_design_error"):
+            md_output.append("_(Based on the 'diagram_hints' from the final design, a diagramming agent could generate the following. This is a placeholder.)_\n")
+            md_output.append("```plantuml\n@startuml\n' Example based on diagram_hints (conceptual)\n' skinparam monochrome true\n\nleft to right direction\n\nactor User\nrectangle \"Web Browser\" as WB\npackage \"Application Backend\" {\n  rectangle \"API Gateway\" as APIGW\n  rectangle \"UserService\" as US\n  rectangle \"NotificationService\" as NS\n  database \"UserDB\"\n  queue \"EmailQueue\"\n}\n\nUser --> WB : Interacts\nWB --> APIGW : HTTP Requests\nAPIGW --> US : Routes to UserService\nUS --> UserDB : CRUD Operations\nUS --> EmailQueue : Enqueues Email Task\nNS --> EmailQueue : Dequeues Email Task\nNS --> User : Sends Email (async)\n\n@enduml\n```\n")
+            md_output.append("[View Conceptual Diagram (PlantUML - paste into a renderer)](https://www.planttext.com/)\n")
+        else:
+            md_output.append("_Diagram generation would occur here based on the final design. No diagram hints available or final design error._\n")
+        md_output.append("\n")
+
+        # 8. Conceptual: Senior Solution Architect's Review Summary
+        md_output.append("## 8. Senior Solution Architect's Review (Conceptual)\n")
+        architect_review_text = full_report_data.get("architect_review_summary",
+            "_This section would contain a high-level review from a (simulated) senior solution architect, "
+            "summarizing the design's fitness for purpose, adherence to best practices, production readiness considerations, "
+            "and overall recommendations based on the entire generation and refinement process. This would be an advanced AI capability._"
+            "\n\n**Key Strengths (Example):**\n- Modular design with clear service separation for core features.\n- Asynchronous processing for notifications enhances responsiveness.\n\n"
+            "**Areas for Further Consideration (Example):**\n- Detailed monitoring and alerting strategy needs to be defined.\n- Comprehensive load testing plan before production deployment.\n- Review data privacy and compliance requirements for user data handling."
+        )
+        md_output.append(f"{architect_review_text}\n")
 
         formatted_text = "\n".join(md_output)
         logger.info("Comprehensive report formatting complete.")
@@ -188,17 +220,22 @@ if __name__ == '__main__':
 
     # Build a mock full_report_data similar to what Orchestrator would create
     mock_full_report = {
-        "cleaned_user_flow": "User registers. User logs in. User views dashboard.",
+        "cleaned_user_flow": "User registers. User logs in. User views dashboard. User requests password reset.",
         "user_flow_analysis": {
             "actors": ["User", "System"], "actions": ["User registers", "User logs in"], "screens_pages": ["Registration Page", "Login Page", "Dashboard"]
         },
         "initial_system_design": {
             "suggested_services": [{"name": "UserService", "description": "Manages users."}],
-            "api_endpoints": [{"method": "POST", "path": "/register", "description": "Registers user."}]
+            "api_endpoints": [{"method": "POST", "path": "/register", "description": "Registers user."}],
+            "diagram_hints": [ # Example diagram hints for initial design
+                {"type": "service", "name": "UserService"},
+                {"type": "api", "path": "/register", "service": "UserService"}
+            ]
         },
-        "design_analysis_report": {
-            "overall_assessment_score": 7, "summary": "Good start, needs password reset.",
-            "completeness_notes": ["Password reset missing."]
+        "design_analysis_report": { # Mock data from DesignAnalysisAgent
+            "overall_assessment_score": 7, "summary": "Good start, needs password reset and async notifications.",
+            "completeness_notes": ["Password reset functionality details are missing."],
+            "scalability_reliability_concerns": ["Synchronous notification sending could be a bottleneck."]
         },
         "design_review_summary": {
             "review_summary": "Needs password reset and better error handling.",
@@ -208,16 +245,38 @@ if __name__ == '__main__':
             "overall_simulation_notes": "Simulation okay, consider edge cases for login.",
             "conceptual_test_cases": [{"test_id": "TC1", "description": "Valid login", "expected_outcome": "Success"}]
         },
-        "final_system_design": {
-            "suggested_services": [{"name": "UserService", "description": "Manages users, including password reset."}, {"name": "NotificationService", "description": "Sends emails."}],
-            "api_endpoints": [
-                {"method": "POST", "path": "/register", "description": "Registers user."},
-                {"method": "POST", "path": "/login", "description": "Logs in user."},
-                {"method": "POST", "path": "/request-password-reset", "description": "Requests password reset."}
+        "final_system_design": { # Mock data from RedesignAgent
+            "suggested_services": [
+                {"name": "UserService", "description": "Manages users, including password reset."},
+                {"name": "NotificationService", "description": "Sends emails asynchronously via a queue."}
             ],
-            "database_tables": [{"name": "users", "columns": ["id", "email", "password_hash", "updated_at"], "relations": []}],
-            "design_rationale_changes": ["Added password reset flow.", "Added updated_at to users table."]
-        }
+            "api_endpoints": [
+                {"method": "POST", "path": "/api/v1/register", "description": "Registers user."},
+                {"method": "POST", "path": "/api/v1/login", "description": "Logs in user."},
+                {"method": "POST", "path": "/api/v1/request-password-reset", "description": "Requests password reset."}
+            ],
+            "database_tables": [
+                {"name": "users", "columns": ["id", "email", "password_hash", "status", "created_at", "updated_at"], "relations": []},
+                {"name": "password_reset_tokens", "columns": ["id", "user_id", "token", "expires_at"], "relations": ["users.id"]}
+            ],
+            "technology_suggestions": ["Python (FastAPI)", "PostgreSQL", "RabbitMQ (for Notification Queue)", "React (Frontend)"],
+            "security_notes": ["Hash passwords (Argon2/bcrypt)", "Email confirmation tokens", "CSRF protection for web frontend", "Input validation"],
+            "design_rationale_changes": [
+                "Added full password reset flow (endpoints, table).",
+                "Made NotificationService asynchronous using a conceptual 'EmailQueue'.",
+                "Added 'status' and 'created_at' to users table for better user management."
+            ],
+            "diagram_hints": [ # Example diagram hints for final design
+                {"type": "service", "name": "UserService", "details": "Handles user auth, registration, password reset"},
+                {"type": "service", "name": "NotificationService", "details": "Async email sending"},
+                {"type": "datastore", "name": "UserDB", "technology": "PostgreSQL"},
+                {"type": "message_queue", "name": "EmailQueue", "technology": "RabbitMQ"},
+                {"type": "component_diagram_edge", "from": "UserService", "to": "UserDB", "label": "CRUD"},
+                {"type": "component_diagram_edge", "from": "UserService", "to": "EmailQueue", "label": "Enqueues email"},
+                {"type": "component_diagram_edge", "from": "NotificationService", "to": "EmailQueue", "label": "Dequeues email"}
+            ]
+        },
+        "architect_review_summary": "The redesigned system addresses key feedback, particularly regarding password reset and asynchronous notifications. The component interactions are clearer. Further consideration should be given to detailed error propagation and idempotency for queue consumers in a production setting." # Mock architect review
     }
 
     logger.info("Testing comprehensive report formatting...")

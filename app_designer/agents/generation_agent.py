@@ -115,8 +115,22 @@ class SystemDesignGenerationAgent:
             "api_endpoints": [],
             "database_tables": [],
             "technology_suggestions": [],
-            "security_notes": ["Ensure input validation on all API endpoints.", "Use parameterized queries for database interactions."]
+        "security_notes": ["Ensure input validation on all API endpoints.", "Use parameterized queries for database interactions."],
+        "diagram_hints": [] # Placeholder for future diagram-related data
         }
+
+        # FUTURE ENHANCEMENT for Language Agnosticism & Diagrams:
+        # To be truly language-agnostic, this agent would first generate a more abstract
+        # internal representation of the system (e.g., using a formal modeling language or a rich,
+        # language-neutral schema). Subsequent agents would then translate this abstract model
+        # into language-specific recommendations.
+        #
+        # For diagrams, this agent could also identify:
+        # - Key entities and their relationships for ERDs.
+        # - Services/components and their dependencies for component/C4 diagrams.
+        # - Sequence of API calls for sequence diagrams.
+        # This data would be passed to a dedicated DiagramGenerationAgent.
+        # Example: diagram_hints: [{"type": "component", "nodes": ["UserService", "DB"], "edges": [("UserService", "DB", "reads/writes")]}]
 
         if "registration" in context_for_simulation.lower() or "signup" in context_for_simulation.lower():
             mock_response_data["suggested_services"].extend([
@@ -168,6 +182,7 @@ class SystemDesignGenerationAgent:
         "database_tables": An array of objects, each with "name" (string, e.g., "users"), "columns" (array of strings describing columns, e.g., "id (UUID, PK)"), and "relations" (array of strings describing foreign key relationships, e.g., "orders.user_id to users.id").
         "technology_suggestions": An array of strings suggesting technologies (e.g., "Backend: Python (FastAPI)").
         "security_notes": An array of strings highlighting key security considerations.
+        "diagram_hints": An array of objects, where each object suggests elements for a diagram (e.g., {{"type": "component_diagram_node", "id": "UserService", "label": "User Service"}, {"type": "component_diagram_edge", "from": "UserService", "to": "Database", "label": "CRUD Users"}}). This is highly conceptual.
 
         User Flow Context:
         --------------------
