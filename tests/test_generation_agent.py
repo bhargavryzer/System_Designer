@@ -15,32 +15,73 @@ class TestSystemDesignGenerationAgent(unittest.TestCase):
     def setUp(self):
         # Test with a dummy API key by default, relying on simulation
         self.dummy_api_key = "DUMMY_API_KEY_FOR_TESTING"
-        self.agent_simulated = SystemDesignGenerationAgent(api_key=self.dummy_api_key)
+        # Default model for testing simulation, can be overridden in specific tests
+        self.default_model_name = "gemini-pro"
+        self.agent_simulated = SystemDesignGenerationAgent(
+            api_key=self.dummy_api_key,
+            model_name=self.default_model_name
+        )
 
-        self.sample_analysis_output = {
+        self.sample_analysis_output_registration = {
             "actors": ["User", "System"],
-            "actions": ["User registers", "System sends email"],
+            "actions": ["User registers", "System sends email confirmation"],
             "screens_pages": ["Registration Page"],
             "original_flow": "User attempts to register. System sends a confirmation email."
         }
 
-    def test_generate_design_components_simulated(self):
-        """Test that simulated response works and returns expected structure."""
-        result = self.agent_simulated.generate_design_components(self.sample_analysis_output)
+    def test_generate_design_components_simulated_registration_flow(self):
+        """Test simulated response for a registration flow."""
+        result = self.agent_simulated.generate_design_components(self.sample_analysis_output_registration)
 
         self.assertIn("suggested_services", result)
+        self.assertTrue(any("user" in s["name"].lower() for s in result["suggested_services"]),
+                        "Expected UserService for registration flow in simulation.")
+        self.assertTrue(any("notification" in s["name"].lower() for s in result["suggested_services"]),
+                        "Expected NotificationService for email confirmation in simulation.")
         self.assertIn("api_endpoints", result)
         self.assertIn("database_tables", result)
         self.assertIsInstance(result["suggested_services"], list)
         # Check if simulation for "registration" or "email" was triggered
-        self.assertTrue(any("user" in s["name"].lower() for s in result["suggested_services"]), "UserService or similar expected for registration flow.")
-        self.assertTrue(any("notification" in s["name"].lower() or "email" in s["name"].lower() for s in result["suggested_services"]), "NotificationService or similar expected for email action.")
+        # No specific check for "email" in service name, as "NotificationService" covers it.
+
+    def test_simulate_gemini_response_order_flow(self):
+        """Test _simulate_gemini_response directly for an order flow context."""
+        # The generate_design_components method internally calls _simulate_gemini_response
+        # when no real API is available. This test focuses on the simulation logic.
+        # We need to craft an analysis output that would lead to an "order" context.
+        order_analysis_output = {
+            "actors": ["Customer", "System"],
+            "actions": ["Customer places order", "System processes payment"],
+            "screens_pages": ["Checkout Page", "Order Confirmation Page"],
+            "original_flow": "Customer places an order for a product. System processes payment and confirms the order."
+        }
+        # The agent's `generate_design_components` will internally use the original_flow for context.
+        result = self.agent_simulated.generate_design_components(order_analysis_output)
+
+        self.assertIn("suggested_services", result)
+        self.assertTrue(any("order" in s["name"].lower() for s in result["suggested_services"]),
+                        "Expected OrderService for order flow in simulation.")
+        self.assertTrue(any("payment" in s["name"].lower() for s in result.get("suggested_services", [])),  # Payment might be separate or part of OrderService
+                        "Expected Payment processing hints for order flow in simulation (optional).")
+
+    def test_simulate_gemini_response_generic_flow(self):
+        """Test _simulate_gemini_response for a generic flow context."""
+        generic_analysis_output = {
+            "actors": ["User"],
+            "actions": ["User performs a generic task"],
+            "screens_pages": ["Generic Page"],
+            "original_flow": "A user performs a generic task on a generic page."
+        }
+        result = self.agent_simulated.generate_design_components(generic_analysis_output)
+        self.assertIn("suggested_services", result)
+        self.assertTrue(any("generic" in s["name"].lower() for s in result["suggested_services"]),
+                        "Expected GenericAppService for a generic flow in simulation.")
 
 
     def test_generate_design_components_invalid_input(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Analysis output is missing or invalid."):
             self.agent_simulated.generate_design_components({}) # Empty analysis
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "Analysis output is missing or invalid."):
             self.agent_simulated.generate_design_components({"actors": []}) # Missing original_flow
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "REAL_KEY_FOR_MOCK_TEST"})
@@ -83,9 +124,12 @@ class TestSystemDesignGenerationAgent(unittest.TestCase):
         mock_genai_module.configure = MagicMock()
 
         # Create agent instance, it should now use the mocked genai
-        agent_with_mocked_api = SystemDesignGenerationAgent(api_key="REAL_KEY_FOR_MOCK_TEST")
+        agent_with_mocked_api = SystemDesignGenerationAgent(
+            api_key="REAL_KEY_FOR_MOCK_TEST",
+            model_name=self.default_model_name
+        )
 
-        result = agent_with_mocked_api.generate_design_components(self.sample_analysis_output)
+        result = agent_with_mocked_api.generate_design_components(self.sample_analysis_output_registration)
 
         # Assert that the genai.GenerativeModel was called (i.e., API path was attempted)
         mock_genai_module.GenerativeModel.assert_called_once_with("gemini-pro") # or whatever default model
@@ -111,12 +155,63 @@ class TestSystemDesignGenerationAgent(unittest.TestCase):
         mock_genai_module.GenerativeModel.return_value = mock_model_instance
         mock_genai_module.configure = MagicMock()
 
-        agent_with_mocked_api = SystemDesignGenerationAgent(api_key="REAL_KEY_FOR_MOCK_TEST")
-        result = agent_with_mocked_api.generate_design_components(self.sample_analysis_output)
+        agent_with_mocked_api = SystemDesignGenerationAgent(
+            api_key="REAL_KEY_FOR_MOCK_TEST",
+            model_name=self.default_model_name
+            )
+        result = agent_with_mocked_api.generate_design_components(self.sample_analysis_output_registration)
 
         self.assertIn("error", result)
         self.assertIn("Failed to parse design from AI response", result["error"])
         self.assertEqual(result["raw_response"], "This is not JSON")
+
+    @patch.dict(os.environ, {"GEMINI_API_KEY": "REAL_KEY_FOR_MOCK_TEST"})
+    @patch('app_designer.agents.generation_agent.genai')
+    def test_gemini_api_call_blocked_prompt(self, mock_genai_module):
+        if not genai:
+            self.skipTest("google.generativeai SDK not available.")
+
+        mock_model_instance = MagicMock()
+
+        # Simulate a BlockedPromptException or similar error
+        # The actual exception is genai.types.BlockedPromptException
+        # We need to mock the response object to reflect how the SDK signals this
+        mock_response_object = MagicMock()
+        mock_response_object.parts = [] # No parts typically for blocked prompt
+        mock_response_object.text = None
+        # Mock prompt_feedback if your code checks it
+        mock_prompt_feedback = MagicMock()
+        mock_prompt_feedback.block_reason = genai.types.HarmBlockThreshold.BLOCK_REASON_SAFETY # Or other reason
+        mock_prompt_feedback.safety_ratings = [] # Example
+        mock_response_object.prompt_feedback = mock_prompt_feedback
+
+        # If generate_content itself raises the exception (depends on SDK version nuances)
+        # mock_model_instance.generate_content.side_effect = genai.types.BlockedPromptException("Blocked due to safety")
+        # For this test, let's assume it returns a response object that indicates blocking via lack of parts/text and prompt_feedback
+        mock_model_instance.generate_content.return_value = mock_response_object
+
+        mock_genai_module.GenerativeModel.return_value = mock_model_instance
+        mock_genai_module.configure = MagicMock()
+
+        agent_with_mocked_api = SystemDesignGenerationAgent(
+            api_key="REAL_KEY_FOR_MOCK_TEST",
+            model_name=self.default_model_name
+            )
+        # We expect the agent's _make_gemini_api_call to catch this and raise,
+        # then generate_design_components to return an error dict.
+        # If BlockedPromptException is raised and not caught by _make_gemini_api_call to return a string,
+        # then generate_design_components's own try-except for Exception e should catch it.
+
+        # Let's refine _make_gemini_api_call in the agent to explicitly handle BlockedPromptException
+        # For now, assume it propagates and is caught by the general Exception in generate_design_components
+
+        result = agent_with_mocked_api.generate_design_components(self.sample_analysis_output_registration)
+
+        self.assertIn("error", result)
+        self.assertTrue("An unexpected error occurred during design generation" in result["error"] or \
+                        "Prompt was blocked" in result.get("details", ""), # if BlockedPromptException is caught and stringified
+                        f"Unexpected error message: {result}")
+
 
 if __name__ == '__main__':
     unittest.main()
