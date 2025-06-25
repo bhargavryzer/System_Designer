@@ -2,20 +2,33 @@
 
 This application takes a textual description of an application's user flow and leverages Google's Gemini AI to generate a high-level system design. The output includes suggestions for services/modules, API endpoints, database tables, technology stack, and security considerations, formatted in Markdown.
 
+## Current Functional Status
+
+This application provides an end-to-end workflow for generating system design documentation from user flow descriptions. It can be run via CLI (`main.py`) or as a backend API (`api.py`).
+
+-   **Initial System Design Generation:**
+    -   This core step **can utilize the actual Google Gemini API** if a valid `GEMINI_API_KEY` is provided in the environment.
+    -   If no valid API key is found, or if the `google-generativeai` SDK is not installed, this step falls back to a **simulated response** using predefined mock data.
+-   **Advanced AI Workflow (Analysis, Review, Simulation, Redesign):**
+    -   The subsequent stages in the advanced workflow—`DesignAnalysisAgent`, `DesignReviewAgent`, `SimulationAndTestGenerationAgent`, and `RedesignAgent`—are currently **conceptual and use mocked responses**.
+    -   These mocked stages demonstrate the intended data flow and the *type* of analysis and refinement that a more advanced AI system could perform. They do **not** involve real AI calls for these specific refinement tasks in the current version.
+-   **Low-Level Design (LLD):**
+    -   The system *attempts* to outline LLD aspects (e.g., method signatures, detailed API schemas, specific database column definitions).
+    -   These LLD details are primarily showcased within the **mocked output of the conceptual `RedesignAgent`**.
+-   **Output:** The application generates a comprehensive Markdown report detailing all stages, including the mocked advanced workflow outputs and conceptual LLD.
+
 ## Features
 
 -   Parses user flow text provided directly or from a file.
--   Generates an initial system design using Gemini AI (or simulation).
--   **Conceptual Advanced AI Workflow (Currently Mocked):**
-    -   **AI Design Analysis:** Analyzes the initial design for completeness, coherence, and best practices.
-    -   **AI Design Review:** Synthesizes analysis into a review and provides redesign recommendations.
-    -   **AI Simulation & Test Generation:** Conceptually generates test cases and simulates system behavior to find flaws.
-    -   **AI Redesign:** Refines the initial design based on all feedback.
--   Outputs a comprehensive system design report in Markdown. This report includes:
-    -   High-Level Design (HLD) elements (services, APIs, data models, tech stack).
-    -   Conceptual Low-Level Design (LLD) details for key components in the final redesigned stage (e.g., service method signatures, API request/response examples, detailed database column definitions).
+-   Generates an initial system design using Gemini AI (or simulation, see "Current Functional Status").
+-   **Conceptual Advanced AI Workflow (Currently Mocked - see "Current Functional Status"):**
+    -   AI Design Analysis
+    -   AI Design Review
+    -   AI Simulation & Test Generation
+    -   AI Redesign
+-   Outputs a comprehensive system design report in Markdown, including HLD and conceptual LLD.
 -   Configurable Gemini model (for initial generation) and logging levels via CLI.
--   User flow analysis currently uses regex/keywords; a future enhancement is to use Gemini for this too.
+-   User flow analysis currently uses regex/keywords.
 
 **Important Note on LLD and Production Readiness:**
 While this system *attempts* to generate LLD aspects, any AI-generated LLD should be treated as a **detailed starting point or accelerator**. It is **not** a substitute for thorough review, refinement, and validation by experienced human engineers and architects. True production readiness involves many factors beyond initial design generation, including rigorous testing, security hardening, performance optimization, and adherence to specific organizational standards, all of which require expert human oversight.
