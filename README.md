@@ -5,11 +5,15 @@ This application takes a textual description of an application's user flow and l
 ## Features
 
 -   Parses user flow text provided directly or from a file.
--   (Conceptually) Uses Gemini AI to understand the flow and generate design components.
-    -   *Current implementation simulates Gemini calls for the main design generation if API key is not provided or SDK is unavailable.*
-    -   *User flow analysis currently uses regex/keywords; a future enhancement is to use Gemini for this too.*
--   Outputs system design in Markdown format, either to console or a file.
--   Configurable Gemini model and logging levels via CLI.
+-   Generates an initial system design using Gemini AI (or simulation).
+-   **Conceptual Advanced AI Workflow (Currently Mocked):**
+    -   **AI Design Analysis:** Analyzes the initial design for completeness, coherence, and best practices.
+    -   **AI Design Review:** Synthesizes analysis into a review and provides redesign recommendations.
+    -   **AI Simulation & Test Generation:** Conceptually generates test cases and simulates system behavior to find flaws.
+    -   **AI Redesign:** Refines the initial design based on all feedback.
+-   Outputs a comprehensive system design report in Markdown, including all stages of the conceptual AI refinement process.
+-   Configurable Gemini model (for initial generation) and logging levels via CLI.
+-   User flow analysis currently uses regex/keywords; a future enhancement is to use Gemini for this too.
 
 ## Prerequisites
 
@@ -111,14 +115,29 @@ app_designer_project_root/
 ```
 *(You might also have a top-level `.gitignore`, `requirements.txt` etc.)*
 
+## Advanced AI Workflow (Conceptual)
+
+The application now includes a more advanced, multi-stage conceptual workflow:
+
+1.  **User Flow Ingestion & Analysis:** The input user flow is cleaned and (currently) analyzed using rule-based methods.
+2.  **Initial Design Generation:** `SystemDesignGenerationAgent` creates a first draft of the system design using Gemini (or simulation).
+3.  **AI Design Analysis (`DesignAnalysisAgent`):** This (conceptual) agent analyzes the initial design for completeness, coherence, best practices, and ambiguities. *Currently returns mocked data.*
+4.  **AI Design Review (`DesignReviewAgent`):** This (conceptual) agent reviews the analysis, prioritizes issues, and suggests redesign focus areas. *Currently returns mocked data.*
+5.  **AI Simulation & Test Generation (`SimulationAndTestGenerationAgent`):** This (highly conceptual) agent would generate test cases and simulate system behavior to find flaws. *Currently returns mocked data.*
+6.  **AI Redesign (`RedesignAgent`):** This (conceptual) agent takes all prior feedback to generate an improved system design. *Currently returns mocked data.*
+7.  **Comprehensive Report:** The `OutputFormattingAgent` compiles all these stages into a single detailed Markdown report.
+
+The AI-driven steps (3-6) are placeholders for what would be complex interactions with advanced AI models. Their current implementation demonstrates the workflow and data structures involved.
+
 ## Future Enhancements / Production Considerations
 
--   **Robust User Flow Analysis:** Integrate Gemini for the analysis phase (`UserFlowAnalysisAgent`) instead of relying on basic regex/keywords.
--   **Advanced Error Handling:** More granular error handling and retry mechanisms for API calls.
+-   **Implement Real AI for Advanced Workflow:** Replace mocked responses in `DesignAnalysisAgent`, `DesignReviewAgent`, `SimulationAndTestGenerationAgent`, and `RedesignAgent` with actual Gemini API calls and sophisticated prompt engineering.
+-   **Robust User Flow Analysis:** Integrate Gemini for the initial user flow analysis phase (`UserFlowAnalysisAgent`) instead of relying on basic regex/keywords.
+-   **Advanced Error Handling & Retries:** More granular error handling and retry mechanisms for all API calls.
 -   **Input Validation:** Stricter validation for input text complexity and size.
--   **Output Formats:** Support for JSON or other structured output formats.
--   **Interactive Mode:** Allow users to iteratively refine the generated design.
--   **Testing:** Comprehensive unit and integration tests.
+-   **Output Formats:** Support for JSON or other structured output formats for each stage.
+-   **Interactive Mode:** Allow users to provide feedback at each stage of the AI review/redesign loop.
+-   **Testing:** Comprehensive unit and integration tests for all agents, including mocking strategies for AI calls.
 -   **Packaging:** Package the application for easier distribution (e.g., PyPI, Docker).
 -   **Security:** If deployed as a service, implement proper authentication/authorization. For CLI, continue secure API key handling.
 ```
