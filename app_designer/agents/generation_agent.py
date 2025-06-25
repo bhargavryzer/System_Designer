@@ -195,9 +195,15 @@ class SystemDesignGenerationAgent:
         --------------------
 
         Based on this context, provide the system design as a JSON object.
-        Example of a service object: {{"name": "UserService", "description": "Handles user authentication and profile management."}}
-        Example of an API endpoint object: {{"method": "POST", "path": "/api/v1/auth/login", "description": "Authenticates a user."}}
-        Example of a database table object: {{"name": "users", "columns": ["id (UUID, PK)", "email (VARCHAR, UNIQUE)"], "relations": []}}
+        # Example of a service object: {{"name": "UserService", "description": "Handles user authentication and profile management.", "lld_details": {{"key_methods": [{{"name": "registerUser", "params": ["userData"], "returns": "UserObject or Error"}}], "core_classes": ["UserValidator", "UserDBAccessor"]}}}}
+        # Example of an API endpoint object: {{"method": "POST", "path": "/api/v1/auth/login", "description": "Authenticates a user.", "lld_details": {{"request_body_schema": {{"email": "string", "password": "string"}}, "response_body_example_success": {{"token": "jwt_token_here"}}}}}}
+        # Example of a database table object: {{"name": "users", "columns": ["id (UUID, PK)", "email (VARCHAR(255), UNIQUE, NOT NULL)", "password_hash (VARCHAR(255), NOT NULL)"], "relations": [], "lld_details": {{"indexes": ["idx_email_unique ON users (email)"]}}}}
+        #
+        # For LLD details:
+        # - For "suggested_services", add an "lld_details" object with "key_methods" (array of objects with "name", "params" array of strings, "returns" string description) and "core_classes" (array of strings).
+        # - For "api_endpoints", add an "lld_details" object with "request_body_schema" (JSON schema or example object), "response_body_example_success" (JSON example), and "response_body_example_error" (JSON example).
+        # - For "database_tables", add an "lld_details" object with "column_details" (array of objects, each with "name", "type", "constraints", "description") and "indexes" (array of strings describing indexes).
+        # Focus LLD on the most critical 1-2 services and 2-3 API endpoints if the design is large. Prioritize core functionality.
         """
 
         try:

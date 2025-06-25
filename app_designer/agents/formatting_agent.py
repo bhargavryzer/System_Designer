@@ -31,25 +31,64 @@ class OutputFormattingAgent:
             md_section.append("### Services/Modules\n")
             for service in design_data["suggested_services"]:
                 md_section.append(f"- **{service.get('name', 'N/A')}**: {service.get('description', 'No description')}")
+                # LLD for Services
+                if "lld_details" in service:
+                    lld = service["lld_details"]
+                    if lld.get("key_methods"):
+                        md_section.append("    - **Key Methods (Conceptual):**")
+                        for method in lld["key_methods"][:3]: # Show a few
+                            params_str = ", ".join(method.get("params", []))
+                            md_section.append(f"        - `{method.get('name', 'N/A')}({params_str})` &rarr; `{method.get('returns', 'N/A')}`")
+                    if lld.get("core_classes"):
+                        md_section.append(f"    - **Core Internal Classes/Modules (Conceptual):** {', '.join(lld['core_classes'][:3])}{'...' if len(lld['core_classes']) > 3 else ''}")
             md_section.append("\n")
 
         # API Endpoints
         if "api_endpoints" in design_data and design_data["api_endpoints"]:
             md_section.append("### API Endpoints\n")
-            md_section.append("| Method | Path                      | Description                         |")
-            md_section.append("|--------|---------------------------|-------------------------------------|")
+            # md_section.append("| Method | Path                      | Description                         |")
+            # md_section.append("|--------|---------------------------|-------------------------------------|")
             for endpoint in design_data["api_endpoints"]:
-                md_section.append(f"| {endpoint.get('method', 'N/A').upper()}  | `{endpoint.get('path', 'N/A')}` | {endpoint.get('description', 'No description')} |")
+                md_section.append(f"- **`{endpoint.get('method', 'N/A').upper()} {endpoint.get('path', 'N/A')}`**: {endpoint.get('description', 'No description')}")
+                # LLD for API Endpoints
+                if "lld_details" in endpoint:
+                    lld = endpoint["lld_details"]
+                    if lld.get("request_body_schema"):
+                        md_section.append("    - **Request Body Schema (Example):**\n      ```json\n" + json.dumps(lld["request_body_schema"], indent=2, ensure_ascii=False) + "\n      ```")
+                    if lld.get("response_body_example_success"):
+                        resp_success = lld["response_body_example_success"]
+                        md_section.append(f"    - **Success Response ({resp_success.get('status_code', '2xx')} - Example):**\n      ```json\n" + json.dumps(resp_success.get("body"), indent=2, ensure_ascii=False) + "\n      ```")
+                    if lld.get("response_body_example_error"):
+                        resp_error = lld["response_body_example_error"]
+                        md_section.append(f"    - **Error Response ({resp_error.get('status_code','4xx/5xx')} - Example):**\n      ```json\n" + json.dumps(resp_error.get("body"), indent=2, ensure_ascii=False) + "\n      ```")
             md_section.append("\n")
 
         # Database Tables
         if "database_tables" in design_data and design_data["database_tables"]:
             md_section.append("### Database Tables\n")
             for table in design_data["database_tables"]:
-                md_section.append(f"- **Table: {table.get('name', 'N/A')}**")
-                md_section.append("  - **Columns**: " + ", ".join(f"`{col}`" for col in table.get("columns", [])))
+                md_section.append(f"- **Table: `{table.get('name', 'N/A')}`**")
                 if table.get("relations"):
-                    md_section.append("  - **Relations**: " + ", ".join(table.get("relations", [])))
+                    md_section.append(f"  - **Relations:** {', '.join(table.get('relations', []))}")
+
+                # LLD for Database Tables
+                if "lld_details" in table:
+                    lld = table["lld_details"]
+                    if lld.get("column_details"):
+                        md_section.append("  - **Columns (Detailed):**")
+                        md_section.append("    | Name | Type | Constraints | Description |")
+                        md_section.append("    |------|------|-------------|-------------|")
+                        for col in lld["column_details"]:
+                            md_section.append(f"    | `{col.get('name', 'N/A')}` | {col.get('type', 'N/A')} | {col.get('constraints', 'N/A')} | {col.get('description', '')} |")
+                    elif table.get("columns"): # Fallback to simple columns if no detailed ones
+                         md_section.append("  - **Columns (Simple):** " + ", ".join(f"`{col}`" for col in table.get("columns", [])))
+
+                    if lld.get("indexes"):
+                        md_section.append("  - **Indexes (Conceptual SQL):**")
+                        for index_def in lld["indexes"]:
+                            md_section.append(f"    - `{index_def}`")
+                elif table.get("columns"): # Fallback if no lld_details at all but columns exist
+                     md_section.append("  - **Columns (Simple):** " + ", ".join(f"`{col}`" for col in table.get("columns", [])))
                 md_section.append("") # Adds a newline for spacing
             md_section.append("\n")
 

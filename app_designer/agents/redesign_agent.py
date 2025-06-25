@@ -92,49 +92,126 @@ class RedesignAgent:
         # This mock will try to reflect some changes based on hypothetical feedback
         mock_redesigned_system = initial_system_design.copy() # Start with the old one
 
+        # --- Populate HLD parts (some might come from initial_system_design) ---
+        mock_redesigned_system["suggested_services"] = [
+            {
+                "name": "UserService",
+                "description": "Manages user lifecycle: registration, authentication, basic user data, and password reset.",
+                "lld_details": {
+                    "key_methods": [
+                        {"name": "registerUser", "params": ["userData: dict"], "returns": "User object or raises error (e.g., DuplicateEmailError, InvalidPasswordError)"},
+                        {"name": "loginUser", "params": ["credentials: dict"], "returns": "AuthToken object or raises error (e.g., InvalidCredentialsError)"},
+                        {"name": "requestPasswordReset", "params": ["email: str"], "returns": "void or raises error (e.g., UserNotFoundError)"},
+                        {"name": "resetPassword", "params": ["token: str", "newPassword: str"], "returns": "void or raises error (e.g., InvalidTokenError)"}
+                    ],
+                    "core_classes": ["UserValidator", "PasswordHasher", "UserDBAccessor", "AuthTokenGenerator"]
+                }
+            },
+            {
+                "name": "NotificationService",
+                "description": "Handles sending emails (e.g., confirmation, password reset) asynchronously via a message queue.",
+                "lld_details": {
+                    "key_methods": [
+                        {"name": "sendConfirmationEmail", "params": ["to_email: str", "confirmation_url: str"], "returns": "TaskID (async)"},
+                        {"name": "sendPasswordResetEmail", "params": ["to_email: str", "reset_url: str"], "returns": "TaskID (async)"}
+                    ],
+                    "core_classes": ["EmailFormatter", "QueueProducer (e.g., RabbitMQProducer)", "EmailSendingWorker (consumes from queue)"]
+                }
+            }
+        ]
+        mock_redesigned_system["api_endpoints"] = [
+            {
+                "method": "POST", "path": "/api/v1/users/register", "description": "Registers a new user.",
+                "lld_details": {
+                    "request_body_schema": {"type": "object", "properties": {"username": {"type": "string"}, "email": {"type": "string", "format": "email"}, "password": {"type": "string", "minLength": 8}}, "required": ["username", "email", "password"]},
+                    "response_body_example_success": {"status_code": 201, "body": {"user_id": "uuid-v4-example", "message": "User registered successfully. Please check your email for confirmation."}},
+                    "response_body_example_error": {"status_code": 409, "body": {"error": "Conflict", "message": "Email already exists."}}
+                }
+            },
+            {
+                "method": "POST", "path": "/api/v1/auth/login", "description": "Authenticates an existing user.",
+                "lld_details": {
+                    "request_body_schema": {"type": "object", "properties": {"email": {"type": "string", "format": "email"}, "password": {"type": "string"}}, "required": ["email", "password"]},
+                    "response_body_example_success": {"status_code": 200, "body": {"access_token": "jwt.example.token", "token_type": "Bearer"}},
+                    "response_body_example_error": {"status_code": 401, "body": {"error": "Unauthorized", "message": "Invalid credentials."}}
+                }
+            },
+            {
+                "method": "POST", "path": "/api/v1/auth/request-password-reset", "description": "Initiates password reset process.",
+                 "lld_details": {
+                    "request_body_schema": {"type": "object", "properties": {"email": {"type": "string", "format": "email"}}, "required": ["email"]},
+                    "response_body_example_success": {"status_code": 202, "body": {"message": "If your email is registered, you will receive a password reset link shortly."}},
+                    "response_body_example_error": {"status_code": 404, "body": {"error": "Not Found", "message": "Email not registered (generic message for security)."}} # Or always 202
+                }
+            }
+        ]
+        mock_redesigned_system["database_tables"] = [
+            {
+                "name": "users",
+                "columns": [], # Will be populated by column_details
+                "relations": [],
+                "lld_details": {
+                    "column_details": [
+                        {"name": "id", "type": "UUID", "constraints": "PRIMARY KEY, DEFAULT gen_random_uuid()"},
+                        {"name": "username", "type": "VARCHAR(100)", "constraints": "UNIQUE, NOT NULL"},
+                        {"name": "email", "type": "VARCHAR(255)", "constraints": "UNIQUE, NOT NULL"},
+                        {"name": "password_hash", "type": "VARCHAR(255)", "constraints": "NOT NULL"},
+                        {"name": "status", "type": "VARCHAR(20)", "constraints": "NOT NULL, DEFAULT 'pending_confirmation' (e.g., pending_confirmation, active, suspended)"},
+                        {"name": "created_at", "type": "TIMESTAMP WITH TIME ZONE", "constraints": "NOT NULL, DEFAULT CURRENT_TIMESTAMP"},
+                        {"name": "updated_at", "type": "TIMESTAMP WITH TIME ZONE", "constraints": "NOT NULL, DEFAULT CURRENT_TIMESTAMP"}
+                    ],
+                    "indexes": ["CREATE UNIQUE INDEX idx_users_email_unique ON users (LOWER(email));", "CREATE INDEX idx_users_username ON users (username);"]
+                }
+            },
+            {
+                "name": "password_reset_tokens",
+                "columns": [],
+                "relations": ["users.id"],
+                 "lld_details": {
+                    "column_details": [
+                        {"name": "id", "type": "UUID", "constraints": "PRIMARY KEY, DEFAULT gen_random_uuid()"},
+                        {"name": "user_id", "type": "UUID", "constraints": "NOT NULL, REFERENCES users(id) ON DELETE CASCADE"},
+                        {"name": "token_hash", "type": "VARCHAR(255)", "constraints": "UNIQUE, NOT NULL"},
+                        {"name": "expires_at", "type": "TIMESTAMP WITH TIME ZONE", "constraints": "NOT NULL"},
+                        {"name": "created_at", "type": "TIMESTAMP WITH TIME ZONE", "constraints": "NOT NULL, DEFAULT CURRENT_TIMESTAMP"}
+                    ],
+                    "indexes": ["CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);"]
+                }
+            }
+        ]
+        mock_redesigned_system["technology_suggestions"] = ["Backend: Python (FastAPI)", "Database: PostgreSQL 15+", "Message Queue: RabbitMQ", "Password Hashing: Argon2id", "Deployment: Docker, Kubernetes (optional)"]
+        mock_redesigned_system["security_notes"] = [
+            "Always hash passwords with a strong, salted algorithm (Argon2id recommended).",
+            "Use HTTPS for all communication.",
+            "Validate and sanitize all user inputs.",
+            "Implement rate limiting on authentication and password reset endpoints.",
+            "Password reset tokens must be short-lived, single-use, and securely generated.",
+            "Store password reset tokens hashed in the database.",
+            "Consider CSRF protection (e.g., SameSite cookies, anti-CSRF tokens) if web frontend.",
+            "Regular security audits and dependency scanning."
+        ]
+        mock_redesigned_system["diagram_hints"] = [ # Conceptual hints for diagramming tools
+                {"type": "actor", "name": "User"},
+                {"type": "service", "name": "UserService", "description": "Handles auth, registration, password reset"},
+                {"type": "service", "name": "NotificationService", "description": "Async email sending"},
+                {"type": "datastore", "name": "UserDB", "technology": "PostgreSQL"},
+                {"type": "message_queue", "name": "EmailQueue", "technology": "RabbitMQ"},
+                {"type": "interaction", "from": "User", "to": "UserService", "label": "/register, /login, /request-password-reset"},
+                {"type": "interaction", "from": "UserService", "to": "UserDB", "label": "CRUD User, Token Data"},
+                {"type": "interaction", "from": "UserService", "to": "EmailQueue", "label": "Enqueue Email Task (confirmation, reset_link)"},
+                {"type": "interaction", "from": "NotificationService", "to": "EmailQueue", "label": "Dequeue Email Task"},
+                {"type": "interaction", "from": "NotificationService", "to": "User", "label": "Send Email (async)"}
+        ]
         mock_redesigned_system["design_rationale_changes"] = [
-            "Added Password Reset Flow: Incorporated new API endpoints (/auth/request-password-reset, /auth/reset-password), logic in UserService, and a 'password_reset_tokens' table as per review recommendation COMPL_PASS_RESET.",
-            "Standardized API Error Handling: All API descriptions now imply use of common HTTP status codes for errors (e.g., 400, 401, 404, 500) as per review AMBIG_ERR_HAND. (Actual implementation of error middleware is implied).",
-            "Clarified NotificationService Interaction: Specified that NotificationService should be called asynchronously (e.g. via a message queue) after core registration logic completes to address SCAL_NOTIF_SYNC.",
-            "Added 'updated_at' to 'users' table: As per ambiguity identified in analysis.",
-            "Refined UserService description: To acknowledge it handles core auth and basic user data, deferring complex profile features for future consideration based on BP_USER_SERVICE_RESP."
+            "Added comprehensive LLD for UserService and NotificationService, including key methods and core classes.",
+            "Detailed API request/response schemas for core authentication endpoints.",
+            "Specified column types, constraints, and indexes for 'users' and 'password_reset_tokens' tables.",
+            "Enhanced security notes with more specific recommendations.",
+            "Updated technology suggestions to be more specific (e.g., PostgreSQL 15+, Argon2id).",
+            "Included detailed diagram hints for core components and interactions."
         ]
 
-        # Example change: Add password reset endpoints (if not already there perfectly)
-        new_endpoints = [
-            {"method": "POST", "path": "/api/v1/auth/request-password-reset", "description": "User requests a password reset link via email."},
-            {"method": "POST", "path": "/api/v1/auth/reset-password", "description": "User sets a new password using a valid token."}
-        ]
-        if "api_endpoints" not in mock_redesigned_system: mock_redesigned_system["api_endpoints"] = []
-        for ep in new_endpoints:
-            if not any(existing_ep["path"] == ep["path"] for existing_ep in mock_redesigned_system["api_endpoints"]):
-                 mock_redesigned_system["api_endpoints"].append(ep)
-
-        # Example change: Add password_reset_tokens table
-        new_table = {
-            "name": "password_reset_tokens",
-            "columns": ["id (UUID, PK)", "user_id (UUID, FK to users.id)", "token (VARCHAR, UNIQUE)", "expires_at (TIMESTAMP)", "created_at (TIMESTAMP)"],
-            "relations": ["users.id"]
-        }
-        if "database_tables" not in mock_redesigned_system: mock_redesigned_system["database_tables"] = []
-        if not any(t["name"] == new_table["name"] for t in mock_redesigned_system["database_tables"]):
-            mock_redesigned_system["database_tables"].append(new_table)
-
-        # Example change: Add 'updated_at' to users table if it exists
-        for table in mock_redesigned_system.get("database_tables", []):
-            if table["name"] == "users" or table["name"] == "Users": # cater for case
-                if "updated_at (TIMESTAMP)" not in table["columns"] and "updated_at" not in table["columns"]:
-                    table["columns"].append("updated_at (TIMESTAMP)")
-
-        # Modify a service description
-        for service in mock_redesigned_system.get("suggested_services", []):
-            if service["name"] == "UserService":
-                service["description"] = "Manages user lifecycle: registration, authentication, basic user data, and password reset. Complex profile features to be detailed separately if needed."
-            if service["name"] == "NotificationService":
-                service["description"] = "Handles sending emails (e.g., confirmation, password reset) asynchronously."
-
-
-        logger.info("RedesignAgent: System redesign process complete (mocked).")
+        logger.info("RedesignAgent: System redesign process complete (mocked with LLD details).")
         return mock_redesigned_system
 
 if __name__ == '__main__':

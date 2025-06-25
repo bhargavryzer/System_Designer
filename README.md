@@ -11,9 +11,14 @@ This application takes a textual description of an application's user flow and l
     -   **AI Design Review:** Synthesizes analysis into a review and provides redesign recommendations.
     -   **AI Simulation & Test Generation:** Conceptually generates test cases and simulates system behavior to find flaws.
     -   **AI Redesign:** Refines the initial design based on all feedback.
--   Outputs a comprehensive system design report in Markdown, including all stages of the conceptual AI refinement process.
+-   Outputs a comprehensive system design report in Markdown. This report includes:
+    -   High-Level Design (HLD) elements (services, APIs, data models, tech stack).
+    -   Conceptual Low-Level Design (LLD) details for key components in the final redesigned stage (e.g., service method signatures, API request/response examples, detailed database column definitions).
 -   Configurable Gemini model (for initial generation) and logging levels via CLI.
 -   User flow analysis currently uses regex/keywords; a future enhancement is to use Gemini for this too.
+
+**Important Note on LLD and Production Readiness:**
+While this system *attempts* to generate LLD aspects, any AI-generated LLD should be treated as a **detailed starting point or accelerator**. It is **not** a substitute for thorough review, refinement, and validation by experienced human engineers and architects. True production readiness involves many factors beyond initial design generation, including rigorous testing, security hardening, performance optimization, and adherence to specific organizational standards, all of which require expert human oversight.
 
 ## Prerequisites
 
